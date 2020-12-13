@@ -44,28 +44,27 @@ app.get('/', (req, res) => {
 
 //Handle POST request - Kullanıcı oluşturmak için yapılab POST isteğini işle
 app.post('/api/exercise/new-user', async (req, res, next) => {
+  
   //On POST request made to API, create document instance from Mongoose model created above
-  const createExerciseTrackerDocumentInstance = new exerciseTrackerModel({username: req.body.username})
+  const createExerciseTrackerDocumentInstance = new exerciseTrackerModel({ username: req.body.username })
   //Save the document intantance created by model above
-  const createUserResult = await exerciseTrackerModel.findOne({username: createExerciseTrackerDocumentInstance.username}, (err, usernameQueryResult) => {
-    if(err){
+  await exerciseTrackerModel.find({ username: createExerciseTrackerDocumentInstance.username }, (err, usernameQueryResult) => {
+    if (err) {
       return console.error(err)
-    }else{
-      if(usernameQueryResult === null){
-        createExerciseTrackerDocumentInstance.save((err, exerciseTrackerDocumentInstance) => {
-          if(err){
-            return console.log(err)
-          }else{
-            console.log("hep burada")
-            return exerciseTrackerDocumentInstance
-          }
-        })
-      }else{
-        return {error: "user already taken!"}
-      }
+    } else {
+      return usernameQueryResult
     }
+  }).then(response => {
+    if (response.length > 0) {
+      return "Üzgünüz, bu kullanıcı adı alınmış."
+    } else {
+        return createExerciseTrackerDocumentInstance.save().then(saveResponse => {
+          return saveResponse
+        })
+    }
+  }).then(result => {
+    res.send(result)
   })
-  res.send({username: createUserResult.username, _id: createUserResult._id})
   next()
 })
 
@@ -74,17 +73,17 @@ app.post('/api/exercise/add', async (req, res, next) => {
 
   //POST isteğinin gövdesinde zaman yoksa bugünü yaz
   var dateData = null
-  if(!req.body.date){
+  if (!req.body.date) {
     var today = new Date()
     var year = today.getFullYear()
-    var month = today.getMonth()+1
-    if(today.getDate() < 10) {
+    var month = today.getMonth() + 1
+    if (today.getDate() < 10) {
       var day = "0" + today.getDate()
-    }else{
+    } else {
       var day = today.getDate()
     }
     dateData = year + '-' + month + '-' + day
-  }else{
+  } else {
     dateData = req.body.date
   }
 
@@ -98,9 +97,9 @@ app.post('/api/exercise/add', async (req, res, next) => {
 
   //Exercise için oluşturulan belge örneğini kaydet
   await newExerciseCreatorDocumentInstance.save((err, exerciseCreatorDocumentInstance) => {
-    if(err){
+    if (err) {
       return console.log(err)
-    }else{
+    } else {
       exerciseCreatorModel.findById(exerciseCreatorDocumentInstance._id, (err, existingDocumentInstances) => {
         if (err) {
           console.error(err)
@@ -125,9 +124,9 @@ app.post('/api/exercise/add', async (req, res, next) => {
 //Kullanıcıları listelemek için yapılan GET isteğini işle
 app.get('/api/exercise/users', async (req, res, next) => {
   const usersQueryResult = await exerciseTrackerModel.find((err, users) => {
-    if(err){
+    if (err) {
       return console.log(err)
-    }else{
+    } else {
       return users
     }
   })
@@ -146,14 +145,14 @@ app.get('/api/exercise/log', async (req, res, next) => {
   const fromQueryParam = req.query.from.split('-').join(', ')
   const toQueryParam = req.query.to.split('-').join(', ')
   const limitQueryParam = req.query.limit
-  const exerciseQueryResult = await exerciseCreatorModel.find({userId: userIdQueryParam, date: { $gte: fromQueryParam, $lte: toQueryParam }}, (err, exercises) => {
-    if(err){
+  const exerciseQueryResult = await exerciseCreatorModel.find({ userId: userIdQueryParam, date: { $gte: fromQueryParam, $lte: toQueryParam } }, (err, exercises) => {
+    if (err) {
       return err
-    }else{
+    } else {
       return exercises
     }
   }).limit(parseInt(limitQueryParam))
-  var countObj = {count: exerciseQueryResult.length}
+  var countObj = { count: exerciseQueryResult.length }
   exerciseQueryResult.push(countObj)
   res.send(exerciseQueryResult)
   next()
