@@ -105,22 +105,24 @@ app.post('/api/exercise/add', async (req, res, next) => {
     })
     .then(data => {
       return exerciseTrackerModel.findById(data.userId)
-      .then(findResult => {
-        return findResult.username
-      })
-      .then(username => {
-        var strDate = data.date.toString().slice(0, 15)
+        .then(findResult => {
+          return findResult.username
+        })
+        .then(username => {
+          var strDate = data.date.toString().slice(0, 15)
 
-        responseBody["_id"] = data.userId
-        responseBody["username"] = username
-        responseBody["date"] = strDate.toString()
-        responseBody["duration"] = parseInt(data.duration)
-        responseBody["description"] = data.description
-        return responseBody
-      })
-      .catch(err => {if(err.message == "Cannot read property 'username' of null"){
-        return responseBody = "Girile ID numarasına sahip bir kullanıcı bulunamadı."
-      }})
+          responseBody["_id"] = data.userId
+          responseBody["username"] = username
+          responseBody["date"] = strDate.toString()
+          responseBody["duration"] = parseInt(data.duration)
+          responseBody["description"] = data.description
+          return responseBody
+        })
+        .catch(err => {
+          if (err.message == "Cannot read property 'username' of null") {
+            return responseBody = "Girile ID numarasına sahip bir kullanıcı bulunamadı."
+          }
+        })
     })
     .catch(err => {
       Object.values(err.errors).map(error => {
@@ -153,21 +155,74 @@ app.get('/api/exercise/users', async (req, res, next) => {
 
 //Exercise verilerini listelemek için yapılan GET isteğini işle
 app.get('/api/exercise/log', async (req, res, next) => {
+
   const userIdQueryParam = req.query.userId
-  const fromQueryParam = req.query.from.split('-').join(', ')
-  const toQueryParam = req.query.to.split('-').join(', ')
-  const limitQueryParam = req.query.limit
-  const exerciseQueryResult = await exerciseCreatorModel.find({ userId: userIdQueryParam, date: { $gte: fromQueryParam, $lte: toQueryParam } }, (err, exercises) => {
-    if (err) {
-      return err
-    } else {
-      return exercises
-    }
-  }).limit(parseInt(limitQueryParam))
-  var countObj = { count: exerciseQueryResult.length }
-  exerciseQueryResult.push(countObj)
-  res.send(exerciseQueryResult)
+  var logArray = []
+  var fromQueryParam = 0
+  var limitQueryParam = 0
+  var responseBody = {}
+
+
+  var toQueryParam = await exerciseCreatorModel.find({ userId: userIdQueryParam })
+    .then(result => {
+      return result[result.length - 1].date
+    })
+    .catch(err => responseBody = err)
+
+  if (req.query.from && req.query.to) {
+    fromQueryParam = req.query.from.split('-').join(', ')
+    toQueryParam = req.query.to.split('-').join(', ')
+  }
+
+  if (req.query.limit) {
+    limitQueryParam = parseInt(req.query.limit)
+  }
+
+  var username = await exerciseTrackerModel.findById(userIdQueryParam)
+    .then(userNameQueryResult => { return userNameQueryResult.username })
+    .catch(err => responseBody = err)
+
+  await exerciseCreatorModel.find({ userId: userIdQueryParam, date: { $gte: fromQueryParam, $lte: toQueryParam }})
+    .limit(limitQueryParam)
+    .then(result => {
+      logArray = result.map(exercise => {
+        var strDate = exercise.date.toString().slice(0, 15)
+        return {
+          description: exercise.description,
+          duration: parseInt(exercise.duration),
+          date: strDate.toString()
+        }
+      })
+      return logArray
+    })
+    .then(finalResponseBody => {
+      
+      responseBody["_id"] = userIdQueryParam
+      responseBody["username"] = username
+      
+      if (req.query.from) {
+        var strFromDate = new Date(req.query.from).toString()
+        var fromDate = strFromDate.slice(0, 15)
+        responseBody["from"] = fromDate
+      }
+      
+      if (req.query.to) {
+        var strToDate = new Date(req.query.to).toString()
+        var toDate = strToDate.slice(0, 15)
+        responseBody["to"] = toDate
+      }
+      
+      responseBody["count"] = logArray.length
+      responseBody["log"] = finalResponseBody
+
+      return responseBody
+    })
+    .catch(err => responseBody = err)
+
+  res.send(responseBody)
+
   next()
+
 })
 
 const listener = app.listen(process.env.PORT || 3000, () => {
