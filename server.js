@@ -25,9 +25,9 @@ const exerciseTrackerModel = mongoose.model('exerciseTrackerModel', exerciseTrac
 
 //Create MongoDB Exercise Schema - MongoDB'de Exercise şeması oluştur
 const exerciseCreatorSchema = new mongoose.Schema({
-  userId: String,
-  description: String,
-  duration: Number,
+  userId: { type: String, required: true },
+  description: { type: String, required: true },
+  duration: { type: String, required: true },
   date: Date
 })
 
@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
 
 //Handle POST request - Kullanıcı oluşturmak için yapılab POST isteğini işle
 app.post('/api/exercise/new-user', async (req, res, next) => {
-  
+
   //On POST request made to API, create document instance from Mongoose model created above
   const createExerciseTrackerDocumentInstance = new exerciseTrackerModel({ username: req.body.username })
   //Save the document intantance created by model above
@@ -58,9 +58,9 @@ app.post('/api/exercise/new-user', async (req, res, next) => {
     if (response.length > 0) {
       return "Üzgünüz, bu kullanıcı adı alınmış."
     } else {
-        return createExerciseTrackerDocumentInstance.save().then(saveResponse => {
-          return saveResponse
-        })
+      return createExerciseTrackerDocumentInstance.save().then(saveResponse => {
+        return saveResponse
+      })
     }
   }).then(result => {
     res.send(result)
@@ -70,6 +70,9 @@ app.post('/api/exercise/new-user', async (req, res, next) => {
 
 //Exercise oluşturmak için yapılan POST isteğini işle
 app.post('/api/exercise/add', async (req, res, next) => {
+
+  //Post isteğine dönecek yanıtı atayacağımız değişkeni tanımlıyoruz
+  var responseBody = {}
 
   //POST isteğinin gövdesinde zaman yoksa bugünü yaz
   var dateData = null
@@ -96,26 +99,35 @@ app.post('/api/exercise/add', async (req, res, next) => {
   })
 
   //Exercise için oluşturulan belge örneğini kaydet
-  await newExerciseCreatorDocumentInstance.save((err, exerciseCreatorDocumentInstance) => {
-    if (err) {
-      return console.log(err)
-    } else {
-      exerciseCreatorModel.findById(exerciseCreatorDocumentInstance._id, (err, existingDocumentInstances) => {
-        if (err) {
-          console.error(err)
-        } else {
-          return console.log("finded document instances id:", existingDocumentInstances._id)
-        }
+  await newExerciseCreatorDocumentInstance.save()
+    .then(data => {
+      return data
+    })
+    .then(data => {
+      return exerciseTrackerModel.findById(data.userId)
+      .then(findResult => {
+        return findResult.username
       })
-    }
-  })
+      .then(username => {
+        var strDate = data.date.toString().slice(0, 15)
 
-  res.send({
-    userId: req.body.userId,
-    description: req.body.description,
-    duration: req.body.duration,
-    date: dateData
-  })
+        responseBody["_id"] = data.userId
+        responseBody["username"] = username
+        responseBody["date"] = strDate.toString()
+        responseBody["duration"] = parseInt(data.duration)
+        responseBody["description"] = data.description
+        return responseBody
+      })
+      .catch(err => {if(err.message == "Cannot read property 'username' of null"){
+        return responseBody = "Girile ID numarasına sahip bir kullanıcı bulunamadı."
+      }})
+    })
+    .catch(err => {
+      Object.values(err.errors).map(error => {
+        return responseBody = error.message
+      })
+    })
+    .finally(() => res.send(responseBody))
 
   next()
 
